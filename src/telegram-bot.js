@@ -23,6 +23,9 @@ class TelegramNotifier {
         this.alertManager = null;
         this.derivClient = null;
         
+        // Startup timestamp to ignore old messages from before bot started
+        this.startupTime = Math.floor(Date.now() / 1000);
+        
         // Watchlist: symbols with periodic Telegram updates
         this.watchlist = new Map(); // symbol -> { interval, lastPrice, updateIntervalSec }
         this.defaultWatchInterval = 300; // Send update every 5 minutes (300 seconds)
@@ -99,12 +102,26 @@ class TelegramNotifier {
         return false;
     }
 
+    // Check if message should be processed (not old and authorized)
+    shouldProcess(msg) {
+        // Ignore messages sent before bot started (clears old queue)
+        if (msg.date < this.startupTime) {
+            return false;
+        }
+        return this.isAuthorized(msg.chat.id);
+    }
+
     // Setup command handlers
     setupCommands() {
         if (!this.bot) return;
 
         // Log all incoming messages (for debugging chat IDs)
         this.bot.on('message', (msg) => {
+            // Ignore messages sent before bot started (clears old queue)
+            if (msg.date < this.startupTime) {
+                return;
+            }
+            
             const chatId = msg.chat.id;
             const chatIdStr = chatId.toString();
             const chatType = msg.chat.type; // 'private', 'group', 'supergroup'
@@ -120,14 +137,14 @@ class TelegramNotifier {
 
         // /start or /help - Show available commands (case-insensitive)
         this.bot.onText(/\/(start|help)/i, (msg) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id; // Update active chat
             this.sendHelp();
         });
 
         // /price [symbol] - Get current price
         this.bot.onText(/\/price(?:\s+(.+))?/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             const symbol = match[1]?.toUpperCase()?.trim()?.replace('_', '_');
             this.handlePriceCommand(symbol);
@@ -135,14 +152,14 @@ class TelegramNotifier {
 
         // /prices - Get all current prices
         this.bot.onText(/\/prices/i, (msg) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             this.handleAllPricesCommand();
         });
 
         // /alert <symbol> <above|below|crosses> <price> - Add single alert
         this.bot.onText(/\/alert\s+(\S+)\s+(above|below|crosses)\s+([\d.]+)/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             const symbol = match[1].trim();
             const condition = match[2].toLowerCase();
@@ -153,21 +170,21 @@ class TelegramNotifier {
         // /alerts - Multiple alerts with different conditions (comma separated)
         // Format: /alerts BTC above 95000, ETH below 2000, XAU crosses 2900
         this.bot.onText(/\/alerts\s+(.+)/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             this.handleMultipleAlerts(match[1]);
         });
 
         // /list - List all alerts
         this.bot.onText(/\/list/i, (msg) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             this.handleListAlerts();
         });
 
         // /remove <id> - Remove alert by ID
         this.bot.onText(/\/remove\s+(\d+)/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             const id = parseInt(match[1]);
             this.handleRemoveAlert(id);
@@ -175,14 +192,14 @@ class TelegramNotifier {
 
         // /clear - Clear all triggered alerts
         this.bot.onText(/\/clear/i, (msg) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             this.handleClearTriggered();
         });
 
         // /watch <symbol> [interval] - Watch with periodic Telegram updates
         this.bot.onText(/\/watch\s+(\S+)(?:\s+(\d+))?/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             const interval = match[2] ? parseInt(match[2]) : this.defaultWatchInterval;
             this.handleWatch(match[1], interval);
@@ -190,21 +207,21 @@ class TelegramNotifier {
 
         // /unwatch <symbol> - Stop watching
         this.bot.onText(/\/unwatch\s+(\S+)/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             this.handleUnwatch(match[1]);
         });
 
         // /watchlist - Show watched symbols
         this.bot.onText(/\/watchlist$/i, (msg) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             this.handleWatchlist();
         });
 
         // /subscribe <symbol> - Subscribe without periodic updates (old behavior)
         this.bot.onText(/\/subscribe\s+(\S+)/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             const symbol = match[1].toUpperCase().replace('_', '_');
             this.handleSubscribe(symbol);
@@ -212,14 +229,14 @@ class TelegramNotifier {
 
         // /symbols - List ALL available symbols
         this.bot.onText(/\/symbols/i, (msg) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             this.handleListSymbols();
         });
 
         // /search <query> - Search for symbols
         this.bot.onText(/\/search\s+(.+)/i, (msg, match) => {
-            if (!this.isAuthorized(msg.chat.id)) return;
+            if (!this.shouldProcess(msg)) return;
             this.chatId = msg.chat.id;
             const query = match[1].trim();
             this.handleSearchSymbols(query);

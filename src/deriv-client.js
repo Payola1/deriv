@@ -257,14 +257,26 @@ class DerivClient {
         return this.activeSymbols;
     }
 
-    // Check if symbol is valid
+    // Check if symbol is valid (case-insensitive)
     isValidSymbol(symbol) {
-        return this.activeSymbols.has(symbol);
+        if (this.activeSymbols.has(symbol)) return true;
+        // Case-insensitive check
+        const upper = symbol.toUpperCase();
+        for (const sym of this.activeSymbols.keys()) {
+            if (sym.toUpperCase() === upper) return true;
+        }
+        return false;
     }
 
-    // Get symbol info
+    // Get symbol info (case-insensitive)
     getSymbolInfo(symbol) {
-        return this.activeSymbols.get(symbol);
+        if (this.activeSymbols.has(symbol)) return this.activeSymbols.get(symbol);
+        // Case-insensitive lookup
+        const upper = symbol.toUpperCase();
+        for (const [sym, info] of this.activeSymbols) {
+            if (sym.toUpperCase() === upper) return info;
+        }
+        return null;
     }
 
     // Get symbols grouped by submarket
