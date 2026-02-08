@@ -1,0 +1,17 @@
+{
+  "name": "deriv-price-alerts",
+  "version": "1.0.0",
+  "description": "Price alert system for Deriv synthetic indices with Telegram notifications",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "node-telegram-bot-api": "^0.64.0",
+    "dotenv": "^16.3.1"
+  },
+  "author": "",
+  "license": "MIT"
+}
