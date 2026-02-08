@@ -10,7 +10,24 @@ class AlertManager {
     constructor(configPath) {
         this.configPath = configPath;
         this.alerts = [];
+        this.ensureConfigFile();
         this.loadAlerts();
+    }
+
+    // Create config file if it doesn't exist
+    ensureConfigFile() {
+        try {
+            const dir = path.dirname(this.configPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            if (!fs.existsSync(this.configPath)) {
+                fs.writeFileSync(this.configPath, JSON.stringify({ alerts: [] }, null, 2));
+                console.log(`📁 Created new alerts file: ${this.configPath}`);
+            }
+        } catch (error) {
+            console.error('Failed to create config file:', error.message);
+        }
     }
 
     loadAlerts() {
@@ -27,9 +44,8 @@ class AlertManager {
 
     saveAlerts() {
         try {
-            const data = fs.readFileSync(this.configPath, 'utf8');
-            const config = JSON.parse(data);
-            config.alerts = this.alerts;
+            this.ensureConfigFile();
+            const config = { alerts: this.alerts };
             fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
         } catch (error) {
             console.error('Failed to save alerts:', error.message);

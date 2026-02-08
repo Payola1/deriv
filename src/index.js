@@ -12,18 +12,34 @@
 require('dotenv').config();
 
 const path = require('path');
+const fs = require('fs');
 const readline = require('readline');
 
 const DerivClient = require('./deriv-client');
 const TelegramNotifier = require('./telegram-bot');
 const AlertManager = require('./alert-manager');
 
+// Determine data directory (Railway volume or local)
+function getDataDir() {
+    // Railway volume mount point
+    if (fs.existsSync('/app/data')) {
+        return '/app/data';
+    }
+    // Local development
+    const localDataDir = path.join(__dirname, '../data');
+    if (!fs.existsSync(localDataDir)) {
+        fs.mkdirSync(localDataDir, { recursive: true });
+    }
+    return localDataDir;
+}
+
 // Configuration
+const dataDir = getDataDir();
 const CONFIG = {
     appId: process.env.DERIV_APP_ID || '1089', // Default demo app ID
     telegramToken: process.env.TELEGRAM_BOT_TOKEN,
     telegramChatId: process.env.TELEGRAM_CHAT_ID,
-    alertsConfig: path.join(__dirname, '../config/alerts.json')
+    alertsConfig: path.join(dataDir, 'alerts.json')
 };
 
 // Initialize components
