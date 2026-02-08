@@ -1,17 +1,64 @@
 /**
  * Alert Manager
- * Manages price alerts and checks conditions
+ * Manages price alerts with Redis persistence (falls back to file if Redis unavailable)
  */
 
 const fs = require('fs');
 const path = require('path');
 
 class AlertManager {
-    constructor(configPath) {
+    constructor(configPath, redisClient = null) {
         this.configPath = configPath;
+        this.redis = redisClient;
+        this.redisKey = 'deriv:alerts';
         this.alerts = [];
-        this.ensureConfigFile();
-        this.loadAlerts();
+        this.useRedis = false;
+    }
+
+    // Initialize storage (call after construction)
+    async init() {
+        if (this.redis) {
+            try {
+                await this.redis.ping();
+                this.useRedis = true;
+                console.log('✅ Using Redis for alert storage');
+                await this.loadAlertsFromRedis();
+            } catch (error) {
+                console.log('⚠️ Redis unavailable, using file storage');
+                this.useRedis = false;
+                this.ensureConfigFile();
+                this.loadAlertsFromFile();
+            }
+        } else {
+            console.log('📁 Using file storage for alerts');
+            this.ensureConfigFile();
+            this.loadAlertsFromFile();
+        }
+    }
+
+    // Load alerts from Redis
+    async loadAlertsFromRedis() {
+        try {
+            const data = await this.redis.get(this.redisKey);
+            if (data) {
+                this.alerts = JSON.parse(data);
+            } else {
+                this.alerts = [];
+            }
+            console.log(`📋 Loaded ${this.alerts.length} alerts from Redis`);
+        } catch (error) {
+            console.error('Failed to load alerts from Redis:', error.message);
+            this.alerts = [];
+        }
+    }
+
+    // Save alerts to Redis
+    async saveAlertsToRedis() {
+        try {
+            await this.redis.set(this.redisKey, JSON.stringify(this.alerts));
+        } catch (error) {
+            console.error('Failed to save alerts to Redis:', error.message);
+        }
     }
 
     // Create config file if it doesn't exist
@@ -30,25 +77,36 @@ class AlertManager {
         }
     }
 
-    loadAlerts() {
+    // Load alerts from file
+    loadAlertsFromFile() {
         try {
             const data = fs.readFileSync(this.configPath, 'utf8');
             const config = JSON.parse(data);
             this.alerts = config.alerts || [];
-            console.log(`📋 Loaded ${this.alerts.length} alerts`);
+            console.log(`📋 Loaded ${this.alerts.length} alerts from file`);
         } catch (error) {
             console.error('Failed to load alerts:', error.message);
             this.alerts = [];
         }
     }
 
-    saveAlerts() {
+    // Save alerts to file
+    saveAlertsToFile() {
         try {
             this.ensureConfigFile();
             const config = { alerts: this.alerts };
             fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
         } catch (error) {
             console.error('Failed to save alerts:', error.message);
+        }
+    }
+
+    // Save alerts (auto-selects storage)
+    saveAlerts() {
+        if (this.useRedis) {
+            this.saveAlertsToRedis();
+        } else {
+            this.saveAlertsToFile();
         }
     }
 

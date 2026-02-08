@@ -19,6 +19,14 @@ const DerivClient = require('./deriv-client');
 const TelegramNotifier = require('./telegram-bot');
 const AlertManager = require('./alert-manager');
 
+// Try to load Redis (optional)
+let Redis;
+try {
+    Redis = require('ioredis');
+} catch (e) {
+    Redis = null;
+}
+
 // Determine data directory (Railway volume or local)
 function getDataDir() {
     // Railway volume mount point
@@ -33,6 +41,25 @@ function getDataDir() {
     return localDataDir;
 }
 
+// Create Redis client if URL is provided
+function createRedisClient() {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl || !Redis) {
+        return null;
+    }
+    try {
+        const client = new Redis(redisUrl, {
+            maxRetriesPerRequest: 3,
+            retryDelayOnFailover: 100,
+            lazyConnect: true
+        });
+        return client;
+    } catch (error) {
+        console.error('Failed to create Redis client:', error.message);
+        return null;
+    }
+}
+
 // Configuration
 const dataDir = getDataDir();
 const CONFIG = {
@@ -45,7 +72,8 @@ const CONFIG = {
 // Initialize components
 const derivClient = new DerivClient(CONFIG.appId);
 const telegram = new TelegramNotifier(CONFIG.telegramToken, CONFIG.telegramChatId);
-const alertManager = new AlertManager(CONFIG.alertsConfig);
+const redisClient = createRedisClient();
+const alertManager = new AlertManager(CONFIG.alertsConfig, redisClient);
 
 // Price tick handler
 function handlePriceTick(symbol, currentPrice, previousPrice) {
@@ -95,6 +123,9 @@ function displayPrices() {
 // Main function
 async function main() {
     const args = process.argv.slice(2);
+    
+    // Initialize alert manager (connects to Redis if available)
+    await alertManager.init();
     
     // Handle command line arguments
     if (args.includes('--list')) {
