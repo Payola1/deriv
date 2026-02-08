@@ -40,6 +40,10 @@ class AlertManager {
         return this.alerts.filter(a => a.enabled);
     }
 
+    getAllAlerts() {
+        return this.alerts;
+    }
+
     getActiveSymbols() {
         const symbols = new Set();
         this.getEnabledAlerts().forEach(a => symbols.add(a.symbol));
@@ -130,6 +134,15 @@ class AlertManager {
             return true;
         }
         return false;
+    }
+
+    // Remove ALL alerts
+    removeAllAlerts() {
+        const count = this.alerts.length;
+        this.alerts = [];
+        this.saveAlerts();
+        console.log(`🗑️ Removed all ${count} alerts`);
+        return count;
     }
 
     // Renumber all alerts sequentially starting from 1

@@ -190,6 +190,13 @@ class TelegramNotifier {
             this.handleRemoveAlert(id);
         });
 
+        // /removeall - Remove ALL alerts
+        this.bot.onText(/\/removeall/i, (msg) => {
+            if (!this.shouldProcess(msg)) return;
+            this.chatId = msg.chat.id;
+            this.handleRemoveAllAlerts();
+        });
+
         // /clear - Clear all triggered alerts
         this.bot.onText(/\/clear/i, (msg) => {
             if (!this.shouldProcess(msg)) return;
@@ -651,6 +658,24 @@ XAU, XAG, BTC, ETH, V10, V25, V50, V75, V100
         } else {
             await this.send(`❌ Alert #${id} not found\n\nUse /list to see all alerts`);
         }
+    }
+
+    // Handle /removeall command - remove ALL alerts
+    async handleRemoveAllAlerts() {
+        if (!this.alertManager) {
+            await this.send('❌ Bot not fully initialized. Please wait...');
+            return;
+        }
+
+        const alerts = this.alertManager.getAllAlerts();
+        if (alerts.length === 0) {
+            await this.send('📋 No alerts to remove.');
+            return;
+        }
+
+        const count = alerts.length;
+        this.alertManager.removeAllAlerts();
+        await this.send(`🗑️ Removed all ${count} alert${count > 1 ? 's' : ''}`);
     }
 
     // Handle /clear command
